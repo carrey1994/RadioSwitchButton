@@ -1,27 +1,30 @@
 package com.example.radioswitchbutton
 
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.content.Context
 import android.graphics.Color
+import android.os.Handler
 import android.util.AttributeSet
+import android.util.Log
 import android.view.Gravity
-import android.view.animation.Animation
-import android.view.animation.TranslateAnimation
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.RelativeLayout
+import kotlin.math.abs
 
 
 class RadioAnimButtons : RelativeLayout {
 
     private var afterPos = 0f
     var isStart = false
-    var lastViewId = 0
-    private var numbers = 3
+    var lastClickViewId = 1
+    private var numbers = 4
     private val buttons = arrayListOf<Button>()
     private val gapPadding = 10
-    private val titles = arrayOf("支出", "收入", "借債")
+    private val titles = arrayOf("支出", "收入", "借債", "借債")
 
-    private var listener: OnSwitchListener? = null
+    private lateinit var listener: OnSwitchListener
 
 
     constructor(context: Context?) : super(context)
@@ -47,7 +50,7 @@ class RadioAnimButtons : RelativeLayout {
                 params.setMargins(gapPadding, 0, gapPadding, 0)
 
                 addView(this, params)
-                background = context.getDrawable(R.drawable.shape_radius_false_button)
+                setBackgroundColor(Color.TRANSPARENT)
                 text = titles[i]
                 stateListAnimator = null
                 setTextColor(Color.WHITE)
@@ -59,43 +62,77 @@ class RadioAnimButtons : RelativeLayout {
 
         val view = FrameLayout(context)
         view.background = context.getDrawable(R.drawable.shape_radio_button)
-        val params = LayoutParams(0, 0)
+        val params = LayoutParams(0, 30)
         params.setMargins(gapPadding, 0, gapPadding, 0)
         params.addRule(ALIGN_PARENT_START, TRUE)
-        params.addRule(ALIGN_PARENT_TOP, TRUE)
         params.addRule(LEFT_OF, buttons[1].id)
         params.addRule(ALIGN_BOTTOM, buttons[1].id)
+
 
         addView(view, params)
 
         for (button in buttons) {
             button.setOnClickListener {
-                if (isStart.not() && lastViewId != it.id) {
-                    val distant = button.x - view.x
-                    lastViewId = it.id
+                val lastViewId = lastClickViewId
+                buttons.indexOfFirst { it.id == lastClickViewId }
+                if (isStart.not() && lastClickViewId != it.id) {
+                    lastClickViewId = it.id
+                    view.pivotX = 0f
 
-                    val animation = TranslateAnimation(afterPos, distant, 0f, 0f).apply {
-                        this.duration = 500
-                        fillAfter = true
-                        isFillEnabled = true
-                        setAnimationListener(object : Animation.AnimationListener {
-                            override fun onAnimationRepeat(p0: Animation?) {
-                            }
 
-                            override fun onAnimationEnd(p0: Animation?) {
-                                buttons.forEach { button -> button.isSelected = false }
-                                isStart = false
-                                it.isSelected = true
-                            }
+                    if (lastClickViewId < lastViewId)
+                        view.pivotX = view.width.toFloat()
 
-                            override fun onAnimationStart(p0: Animation?) {
-                                isStart = true
-                                listener?.onSwitch(buttons.indexOf(it))
-                            }
-                        })
+
+                    val scaleX = ObjectAnimator.ofFloat(
+                        view,
+                        "ScaleX",
+                        1f,
+                        1 + abs(lastClickViewId - lastViewId).toFloat()
+                    ).apply {
+                        duration = 500
                     }
+
+                    val scaleY = ObjectAnimator.ofFloat(view, "ScaleY", 1f, 0.5f).apply {
+                        duration = 500
+                    }
+
+
+                    val aniSet = AnimatorSet()
+                    aniSet.playTogether(scaleX, scaleY)
+                    aniSet.start()
+                    Handler().postDelayed({
+
+                        val scaleX2 =
+                            ObjectAnimator.ofFloat(
+                                view,
+                                "ScaleX",
+                                1 + abs(lastClickViewId - lastViewId).toFloat(),
+                                1f
+                            ).apply {
+                                duration = 500
+                            }
+
+                        val scaleY2 = ObjectAnimator.ofFloat(view, "ScaleY", 0.5f, 1f).apply {
+                            duration = 500
+                        }
+
+
+                        val translate = ObjectAnimator.ofFloat(
+                            view,
+                            "TranslationX",
+                            (buttons.indexOf(it) * 2f * gapPadding + (buttons.indexOf(it)) * view.width.toFloat())
+                        ).apply {
+                            duration = 500
+                        }
+
+                        val aniSet2 = AnimatorSet()
+                        aniSet2.playTogether(scaleX2, scaleY2, translate)
+                        aniSet2.start()
+
+                    }, 500)
+
                     afterPos = button.x
-                    view.startAnimation(animation)
                 }
             }
         }
